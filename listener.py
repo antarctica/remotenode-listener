@@ -8,7 +8,11 @@ from subprocess import call, Popen, PIPE
 import sys
 import time
 
+# TODO: Sort out logging levels!
+# TODO: Add timestamp to logging
+# TODO: Feed command output to logs
 logging.basicConfig(level=logging.DEBUG)
+
 
 def get_args():
     a = argparse.ArgumentParser()
@@ -18,8 +22,10 @@ def get_args():
     a.add_argument("--wait-interval", "-w", help="Time to sleep between checks for port disappearing again", default=30, type=int)
     return vars(a.parse_args())
 
+
 def check_for_port(port):
     match = False
+    ports = []
     
     with Popen(["ss", "-plnt4"], 
         stdout=PIPE,
@@ -29,6 +35,7 @@ def check_for_port(port):
 
             try:
                port = int(listener[listener.index(':')+1:])
+               ports.append(port)
             except (TypeError, ValueError, IndexError):
                 continue
             
@@ -36,6 +43,7 @@ def check_for_port(port):
                 logging.debug("We have a matching port listening")
                 match = True
                 break
+        logging.debug("Checked ports {}".format(",".join(ports)))
     return match
     
 if __name__ == "__main__":
