@@ -5,7 +5,7 @@ import logging
 import os
 import shlex
 from subprocess import call, Popen, PIPE
-import sys
+import traceback
 import time
 
 # TODO: Sort out logging levels!
@@ -35,7 +35,7 @@ def check_for_port(port):
 
             try:
                port = int(listener[listener.index(':')+1:])
-               ports.append(port)
+               ports.append(str(port))
             except (TypeError, ValueError, IndexError):
                 continue
             
@@ -48,7 +48,7 @@ def check_for_port(port):
     
 if __name__ == "__main__":
     args = get_args()
-    
+
     logging.info("Listening for connection on port {}".format(args['port']))
 
     while True:
@@ -60,7 +60,7 @@ if __name__ == "__main__":
                 rc = call(shlex.split(args["command"]))
                 logging.info("Completed execution with rc {}, returning to listen state".format(rc))
             except Exception:
-                logging.warning("Problem encountered: {}".format(sys.exc_info()[0]))
+                logging.warning("Problem encountered: {}".format(traceback.format_exc()))
             
             while check_for_port(args["port"]):
                 logging.debug("Waiting for {} until port disappears to resume checking".format(args["wait_interval"]))

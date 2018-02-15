@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -lt 2 ]; then
-    echo "Usage: grab_rssh_files.sh <port> <source> <user> <destination>"
+    echo "Usage: grab_files.sh <port> <source> <user> <destination>"
     exit 1
 fi
     
@@ -14,5 +14,5 @@ DESTINATION="${4:-rssh}"
 DESTINATION=${DESTINATION%/}
 
 echo "Syncing from ${USER}localhost:$PORT $SOURCE"
-rsync -avh --partial -e "ssh -p $PORT -o RequestTTY=no -T" ${USER}localhost:$SOURCE $DESTINATION/
+rsync -avh --partial --port=$1 ${USER}localhost:$SOURCE $DESTINATION/
 exit $?
