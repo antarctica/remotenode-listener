@@ -58,7 +58,7 @@ class DataReceiver(object):
                                              bytesize=serial.EIGHTBITS,
                                              parity=serial.PARITY_NONE,
                                              stopbits=serial.STOPBITS_ONE,
-                                             timeout=120,
+#                                             timeout=3,
                                              rtscts=True,
                                              dsrdtr=True)
                 logging.info('Connected to fake serial {}'.format(self._ttyloc))
@@ -98,7 +98,7 @@ class DataReceiver(object):
                 except struct.error:
                     raise
 
-                logging.info("Received filename infromation, checking...")
+                logging.info("Received filename information, checking...")
                 logging.debug("Filename length: {}".format(length))
                 logging.debug("Filename: {}".format(filename))
                 logging.debug("Filename CRC: {}".format(crc32))
@@ -108,16 +108,16 @@ class DataReceiver(object):
                     ser_port.write("NAMERECV\r\n".encode("ascii"))
 
                     def _getc(size, timeout=None):
-                        #logging.debug("READ SIZE: {}".format(size))
+                        logging.debug("READ SIZE: {}".format(size))
                         read = ser_port.read(size=size) or None
-                        #logging.debug("READ DATA: {}".format(read))
+                        logging.debug("READ DATA: {}".format(read))
                         return read
 
                     def _putc(data, timeout=None):
-                        #logging.debug("WRITE DATA: {}".format(data))
+                        logging.debug("WRITE DATA: {}".format(data))
                         size = ser_port.write(data=data)
                         ser_port.flush()
-                        #logging.debug("WRITE SIZE: {}".format(size))
+                        logging.debug("WRITE SIZE: {}".format(size))
                         return size
 
                     xfer = xmodem.XMODEM(_getc, _putc)
