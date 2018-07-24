@@ -35,7 +35,7 @@ class DataReceiver(object):
         if not os.path.exists(self._dir):
             raise DataReceiverConfigurationError("{} doesn't exist".format(self._dir))
 
-        self._socat = sp.Popen('socat pty,link={},rawer tcp-listen:{},fork,cr'.format(self._ttyloc, self._port),
+        self._socat = sp.Popen('socat pty,link={},rawer tcp-listen:{},fork'.format(self._ttyloc, self._port),
                             shell=True)
 
         time.sleep(1)
@@ -78,7 +78,7 @@ class DataReceiver(object):
                 if filename_command.endswith("FILENAME"):
                     logging.debug("Sending FILENAME response...")
                     # TODO: \r\n (gahhh) due to inconsistent line terminators, sort it out
-                    ser_port.write("GOFORIT\r\n".encode("ascii"))
+                    ser_port.write("GOFORIT\r\n".encode("latin-1"))
                 else:
                     logging.debug("No valid message received, start again...")
                     continue
@@ -106,7 +106,7 @@ class DataReceiver(object):
 
                 if lead == 0x1a \
                    and binascii.crc32(filename) & 0xffffffff == crc32:
-                    ser_port.write("NAMERECV\r\n".encode("ascii"))
+                    ser_port.write("NAMERECV\r\n".encode("latin-1"))
 
                     def _getc(size, timeout=None):
                         #logging.debug("READ SIZE: {}".format(size))
@@ -133,8 +133,7 @@ class DataReceiver(object):
                     with open(filename, "wb") as fh:
                         xfer.recv(fh)
                 else:
-                    logging.warning("Invalid message received")
-                    break
+                    logging.warning("Invalid message received, looping for another listen")
         finally:
             if ser_port is not None and ser_port.is_open:
                 ser_port.close()
