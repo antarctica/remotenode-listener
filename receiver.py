@@ -71,7 +71,7 @@ class DataReceiver(object):
 
                 logging.debug("Data received: {}".format(data))
 
-                filename_command = data.decode("ascii").strip()
+                filename_command = data.decode("latin-1").strip()
                 logging.debug("Comparing {} and {}".format(data.decode("ascii").strip(), "FILENAME"))
 
                 # There is often a stray \x00 byte at the start, which I'm happy to fuck off...
