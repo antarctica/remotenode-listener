@@ -35,7 +35,7 @@ class DataReceiver(object):
         if not os.path.exists(self._dir):
             raise DataReceiverConfigurationError("{} doesn't exist".format(self._dir))
 
-        self._socat = sp.Popen('socat pty,link={},raw tcp-listen:{},fork'.format(self._ttyloc, self._port),
+        self._socat = sp.Popen('socat pty,link={},rawer tcp-listen:{},fork,cr'.format(self._ttyloc, self._port),
                             shell=True)
 
         time.sleep(1)
@@ -54,11 +54,12 @@ class DataReceiver(object):
 
                 if not ser_port or not ser_port.is_open:
                     ser_port = serial.Serial(self._ttyloc,
-                                             baudrate=115200,
+                                             baudrate=9600,
                                              bytesize=serial.EIGHTBITS,
                                              parity=serial.PARITY_NONE,
                                              stopbits=serial.STOPBITS_ONE,
-#                                             timeout=3,
+                                             timeout=180,
+                                             write_timeout=5,
                                              rtscts=True,
                                              dsrdtr=True)
                 logging.info('Connected to fake serial {}'.format(self._ttyloc))
@@ -108,16 +109,19 @@ class DataReceiver(object):
                     ser_port.write("NAMERECV\r\n".encode("ascii"))
 
                     def _getc(size, timeout=None):
-                        logging.debug("READ SIZE: {}".format(size))
+                        #logging.debug("READ SIZE: {}".format(size))
                         read = ser_port.read(size=size) or None
-                        logging.debug("READ DATA: {}".format(read))
+                        #logging.debug("READ DATA: {}".format(read))
                         return read
 
+                    # TODO: If the ack doesn't arrive at the sender end we end up receiving
+                    # multiple instances of the packet the sender thinks wasn't ack'd. It
+                    # appears we never end up sending the NAK over to the sender???
                     def _putc(data, timeout=None):
                         logging.debug("WRITE DATA: {}".format(data))
                         size = ser_port.write(data=data)
                         ser_port.flush()
-                        logging.debug("WRITE SIZE: {}".format(size))
+                        #logging.debug("WRITE SIZE: {}".format(size))
                         return size
 
                     xfer = xmodem.XMODEM(_getc, _putc)
