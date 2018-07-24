@@ -54,12 +54,12 @@ class DataReceiver(object):
 
                 if not ser_port or not ser_port.is_open:
                     ser_port = serial.Serial(self._ttyloc,
-                                             baudrate=9600,
+                                             baudrate=115200,
                                              bytesize=serial.EIGHTBITS,
                                              parity=serial.PARITY_NONE,
                                              stopbits=serial.STOPBITS_ONE,
-                                             timeout=180,
-                                             write_timeout=5,
+                                             timeout=10,
+                                             write_timeout=10,
                                              rtscts=True,
                                              dsrdtr=True)
                 logging.info('Connected to fake serial {}'.format(self._ttyloc))
@@ -110,13 +110,18 @@ class DataReceiver(object):
 
                     def _getc(size, timeout=None):
                         #logging.debug("READ SIZE: {}".format(size))
+
+                        old_timeout = None
+                        if timeout:
+                            old_timeout = ser_port.timeout
+                            ser_port.timeout = timeout
                         read = ser_port.read(size=size) or None
+                        if old_timeout:
+                            ser_port.timeout = old_timeout
+
                         #logging.debug("READ DATA: {}".format(read))
                         return read
 
-                    # TODO: If the ack doesn't arrive at the sender end we end up receiving
-                    # multiple instances of the packet the sender thinks wasn't ack'd. It
-                    # appears we never end up sending the NAK over to the sender???
                     def _putc(data, timeout=None):
                         logging.debug("WRITE DATA: {}".format(data))
                         size = ser_port.write(data=data)
