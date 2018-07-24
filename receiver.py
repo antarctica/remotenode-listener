@@ -108,22 +108,18 @@ class DataReceiver(object):
                    and binascii.crc32(filename) & 0xffffffff == crc32:
                     ser_port.write("NAMERECV\r\n".encode("latin-1"))
 
-                    def _getc(size, timeout=None):
+                    def _getc(size, timeout=ser_port.timeout):
                         #logging.debug("READ SIZE: {}".format(size))
 
-                        old_timeout = None
-                        if timeout:
-                            old_timeout = ser_port.timeout
-                            ser_port.timeout = timeout
+                        ser_port.timeout = timeout
                         read = ser_port.read(size=size) or None
-                        if old_timeout:
-                            ser_port.timeout = old_timeout
 
                         #logging.debug("READ DATA: {}".format(read))
                         return read
 
-                    def _putc(data, timeout=None):
+                    def _putc(data, timeout=ser_port.write_timeout):
                         logging.debug("WRITE DATA: {}".format(data))
+                        ser_port.write_timeout = timeout
                         size = ser_port.write(data=data)
                         ser_port.flush()
                         #logging.debug("WRITE SIZE: {}".format(size))
@@ -131,7 +127,7 @@ class DataReceiver(object):
 
                     xfer = xmodem.XMODEM(_getc, _putc)
                     with open(filename, "wb") as fh:
-                        xfer.recv(fh)
+                        xfer.recv(fh, retries=100)
                 else:
                     logging.warning("Invalid message received, looping for another listen")
         finally:
