@@ -127,7 +127,7 @@ class DataReceiver(object):
 
                     xfer = xmodem.XMODEM(_getc, _putc)
                     with open(filename, "wb") as fh:
-                        xfer.recv(fh, retries=100)
+                        xfer.recv(fh, retry=100)
                 else:
                     logging.warning("Invalid message received, looping for another listen")
         finally:
