@@ -119,7 +119,7 @@ class DataReceiver(object):
 
                     def _putc(data, timeout=ser_port.write_timeout):
                         logging.debug("WRITE DATA: {}".format(data))
-                        ser_port.write_timeout = timeout
+                        #ser_port.write_timeout = timeout
                         size = ser_port.write(data=data)
                         ser_port.flush()
                         #logging.debug("WRITE SIZE: {}".format(size))
