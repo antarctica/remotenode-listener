@@ -1,6 +1,7 @@
 import argparse
 import binascii
 import datetime
+import inspect
 import logging
 import os
 import pprint
@@ -26,8 +27,42 @@ class SocatException(Exception):
     pass
 
 
+# TODO: Would be prettier to decorate from this
+class DebugSerial(serial.Serial):
+    def __init__(self, *args, **kwargs):
+        super(DebugSerial, self).__init__(*args, **kwargs)
+        self._filename = datetime.datetime.now().strftime("debug.%d%m%Y-%H%M%S.out")
+
+    def read(self, *args, **kwargs):
+        ret = super(DebugSerial, self).read(*args, **kwargs)
+        if len(ret) > 1:
+            self.output_debug(ret)
+        return ret
+
+    def read_until(self, *args, **kwargs):
+        ret = super(DebugSerial, self).read_until(*args, **kwargs)
+        self.output_debug(ret)
+        return ret
+
+    def write(self, data):
+        ret = super(DebugSerial, self).write(data)
+        self.output_debug(data)
+        return ret
+
+    def output_debug(self, msg):
+        with open(self._filename, "a") as fh:
+            fh.write("""
+---
+{}
+---
+{}
+---
+""".format(msg.decode(), "".join(["{:02X}".format(b) for b in msg])))
+
+
 class DataReceiver(object):
-    def __init__(self, port, location, output_dir):
+    def __init__(self, port, location, output_dir, debug=False):
+        self._debug = debug
         self._dir = output_dir
         self._port = port
         self._ttyloc = location
@@ -35,7 +70,7 @@ class DataReceiver(object):
         if not os.path.exists(self._dir):
             raise DataReceiverConfigurationError("{} doesn't exist".format(self._dir))
 
-        self._socat = sp.Popen('socat pty,link={},rawer tcp-listen:{},fork'.format(self._ttyloc, self._port),
+        self._socat = sp.Popen('socat pty,link={},raw tcp-listen:{},fork,reuseaddr'.format(self._ttyloc, self._port),
                             shell=True)
 
         time.sleep(1)
@@ -53,21 +88,25 @@ class DataReceiver(object):
                 logging.info('Waiting for connection on {}...'.format(self._port))
 
                 if not ser_port or not ser_port.is_open:
-                    ser_port = serial.Serial(self._ttyloc,
-                                             baudrate=115200,
-                                             bytesize=serial.EIGHTBITS,
-                                             parity=serial.PARITY_NONE,
-                                             stopbits=serial.STOPBITS_ONE,
-                                             timeout=10,
-                                             write_timeout=10,
-                                             rtscts=True,
-                                             dsrdtr=True)
+                    cls = serial.Serial
+                    if self._debug:
+                        cls = DebugSerial
+                    ser_port = cls(self._ttyloc,
+                                   baudrate=115200,
+                                   bytesize=serial.EIGHTBITS,
+                                   parity=serial.PARITY_NONE,
+                                   stopbits=serial.STOPBITS_ONE,
+#                                   timeout=10,
+#                                   write_timeout=10,
+                                   rtscts=True,
+                                   dsrdtr=True
+                                   )
                 logging.info('Connected to fake serial {}'.format(self._ttyloc))
                 ser_port.flushInput()
 
                 data = None
                 while not data:
-                    data = ser_port.read_until(terminator=su.CR)
+                    data = ser_port.read_until(terminator=su.LF)
 
                 logging.debug("Data received: {}".format(data))
 
@@ -140,6 +179,14 @@ class DataReceiver(object):
                 logging.warning("Could not close the socat process, it's either dead or being a mong...")
 
     @property
+    def debug(self):
+        return self._debug
+
+    @debug.setter
+    def debug(self, val=True):
+        self._debug = val
+
+    @property
     def thread(self):
         return self._thread
 
@@ -153,11 +200,12 @@ class DataReceiverRuntimeError(Exception):
 
 if __name__ == '__main__':
     a = argparse.ArgumentParser()
+    a.add_argument("-d", "--debug", help="Write a transaction log", action="store_true", default=False)
     a.add_argument("port", help="TCP port to listen on", type=int)
     a.add_argument("ptyLocation", help="pty to feed TCP to")
     a.add_argument("directory", help="Output directory")
-    args = a.parse_args()
+    cmd_args = a.parse_args()
 
-    dm = DataReceiver(args.port, args.ptyLocation, args.directory)
+    dm = DataReceiver(cmd_args.port, cmd_args.ptyLocation, cmd_args.directory, cmd_args.debug)
     dm.thread.join()
     logging.info("Stopped listening for data...")
