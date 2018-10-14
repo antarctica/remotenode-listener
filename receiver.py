@@ -92,7 +92,7 @@ class DataReceiver(object):
                     if self._debug:
                         cls = DebugSerial
                     ser_port = cls(self._ttyloc,
-                                   baudrate=115200,
+                                   baudrate=19200,
                                    bytesize=serial.EIGHTBITS,
                                    parity=serial.PARITY_NONE,
                                    stopbits=serial.STOPBITS_ONE,
