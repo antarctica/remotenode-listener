@@ -150,7 +150,7 @@ class DataReceiver(object):
                         and binascii.crc32(filename) & 0xffffffff == crc32:
                         ser_port.write("NAMERECV\r\n".encode("latin-1"))
                 else:
-                    dt = datetime.datetime.now().strftime("%d%m%Y-%H%M%s")
+                    dt = datetime.datetime.now().strftime("%d%m%Y-%H%M%S")
                     filename = "xraw.{}.dat".format(dt)
 
                 def _getc(size, timeout=ser_port.timeout):
@@ -170,6 +170,7 @@ class DataReceiver(object):
                     #logging.debug("WRITE SIZE: {}".format(size))
                     return size
 
+                time.sleep(2)
                 xfer = xmodem.XMODEM(_getc, _putc)
                 with open(os.path.join(self._dir, filename), "wb") as fh:
                     xfer.recv(fh, retry=100)
