@@ -28,11 +28,11 @@ class SocatException(Exception):
     pass
 
 
-# TODO: Would be prettier to decorate from this
+# TODO: Make this more usable, to debug failure in connection, also: handle raw data!
 class DebugSerial(serial.Serial):
     def __init__(self, *args, **kwargs):
         super(DebugSerial, self).__init__(*args, **kwargs)
-        self._filename = datetime.datetime.now().strftime("debug.%d%m%Y-%H%M%S.out")
+        self._filename = datetime.datetime.now().strftime("debug.%d%m%Y-%H%M%S")
 
     def read(self, *args, **kwargs):
         ret = super(DebugSerial, self).read(*args, **kwargs)
@@ -51,14 +51,8 @@ class DebugSerial(serial.Serial):
         return ret
 
     def output_debug(self, msg):
-        with open(self._filename, "a") as fh:
-            fh.write("""
----
-{}
----
-{}
----
-""".format(msg.decode(), "".join(["{:02X}".format(b) for b in msg])))
+        with open("{}.hex".format(self._filename), "a") as fh:
+            fh.write("{}".format("".join(["{:02X}".format(b) for b in msg])))
 
 
 class DataReceiver(object):
@@ -170,6 +164,7 @@ class DataReceiver(object):
                     #logging.debug("WRITE SIZE: {}".format(size))
                     return size
 
+                # TODO: Solve this timeliness to start
                 time.sleep(2)
                 xfer = xmodem.XMODEM(_getc, _putc)
                 with open(os.path.join(self._dir, filename), "wb") as fh:
