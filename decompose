@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+
+import argparse
+
+if __name__ == "__main__":
+    a = argparse.ArgumentParser()
+    a.add_argument("file", help="Hex file to decompose")
+    args = a.parse_args()
+
+    text = ""
+    hex = ""
+    with open(args.file) as fh:
+        c = fh.read(2)
+        while c:
+            hex += "{} ".format(c)
+            text += "{:2s} ".format(chr(int(c, 16)))
+            c = fh.read(2)
+
+    print("TEXT:\n\n{}\n".format(text))
+    print("HEX:\n\n{}\n".format(hex))

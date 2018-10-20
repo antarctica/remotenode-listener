@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 import argparse
 import binascii
+import ctypes
 import datetime
-import inspect
 import logging
 import os
-import pprint
-import re
 import serial
 import serial.threaded
 import serial.serialutil as su
-import socket
 import struct
 import subprocess as sp
-import sys
 import time
 import xmodem
 
@@ -124,8 +120,10 @@ class DataReceiver(object):
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
-                        (crc32, tail) = struct.unpack_from("qB", data,
-                                                       struct.calcsize("BB{}s".format(length)))
+                        # TODO: pyremotenode needs to mimic the int32 signed CRC as I don't think I can force
+                        # the VM2 to send an unsigned int
+                        (crc32, tail) = struct.unpack_from("iB", data,
+                                                           struct.calcsize("BB{}s".format(length)))
                     except struct.error:
                         raise
 
@@ -135,8 +133,10 @@ class DataReceiver(object):
                     logging.debug("Filename CRC: {}".format(crc32))
 
                     if lead == 0x1a \
-                        and binascii.crc32(filename) & 0xffffffff == crc32:
+                        and ctypes.c_int(binascii.crc32(filename) & 0xffffffff).value == crc32:
                         ser_port.write("NAMERECV\r\n".encode("latin-1"))
+                    else:
+                        raise RuntimeError("Message not consistent")
                 else:
                     dt = datetime.datetime.now().strftime("%d%m%Y-%H%M%S")
                     filename = "xraw.{}.dat".format(dt)
