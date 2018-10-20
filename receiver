@@ -135,6 +135,7 @@ class DataReceiver(object):
                     if lead == 0x1a \
                         and ctypes.c_int(binascii.crc32(filename) & 0xffffffff).value == crc32:
                         ser_port.write("NAMERECV\r\n".encode("latin-1"))
+                        filename = os.path.basename(filename.decode())
                     else:
                         raise RuntimeError("Message not consistent")
                 else:
