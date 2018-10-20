@@ -122,7 +122,7 @@ class DataReceiver(object):
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
                         # TODO: pyremotenode needs to mimic the int32 signed CRC as I don't think I can force
                         # the VM2 to send an unsigned int
-                        (crc32, tail) = struct.unpack_from("iB", data,
+                        (crc32, tail) = struct.unpack_from("<iB", data,
                                                            struct.calcsize("BB{}s".format(length)))
                     except struct.error:
                         raise
