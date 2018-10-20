@@ -36,12 +36,6 @@ class DebugSerial(serial.Serial):
 
     def read(self, *args, **kwargs):
         ret = super(DebugSerial, self).read(*args, **kwargs)
-        if len(ret) > 1:
-            self.output_debug(ret)
-        return ret
-
-    def read_until(self, *args, **kwargs):
-        ret = super(DebugSerial, self).read_until(*args, **kwargs)
         self.output_debug(ret)
         return ret
 
