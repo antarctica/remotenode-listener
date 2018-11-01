@@ -72,6 +72,10 @@ class DataReceiver(object):
         try:
             while True:
                 logging.info('Waiting for connection on {}...'.format(self._port))
+                filename = None
+                filelength = 0
+                chunk = 0
+                total_chunks = 0
 
                 if not ser_port or not ser_port.is_open:
                     cls = serial.Serial
@@ -120,27 +124,32 @@ class DataReceiver(object):
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
+                        (filelength) = struct.unpack_from("<i", data, struct.calcsize("BB{}s".format(length)))[0]
+                        (chunk) = struct.unpack_from("<i", data, struct.calcsize("BB{}si".format(length)))[0]
+                        (total_chunks) = struct.unpack_from("<i", data, struct.calcsize("BB{}sii".format(length)))[0]
                         # TODO: pyremotenode needs to mimic the int32 signed CRC as I don't think I can force
                         # the VM2 to send an unsigned int
                         (crc32, tail) = struct.unpack_from("<iB", data,
-                                                           struct.calcsize("BB{}s".format(length)))
+                                                           struct.calcsize("BB{}siii".format(length)))
                     except struct.error:
                         raise
 
                     logging.info("Received filename information, checking...")
-                    logging.debug("Filename length: {}".format(length))
                     logging.debug("Filename: {}".format(filename))
+                    logging.debug("Filename length: {}".format(length))
+                    logging.debug("Filename chunk: {} of {}".format(chunk, total_chunks))
+                    logging.debug("File length: {} bytes".format(filelength))
                     logging.debug("Filename CRC: {}".format(crc32))
 
                     if lead == 0x1a \
                         and ctypes.c_int(binascii.crc32(filename) & 0xffffffff).value == crc32:
                         ser_port.write("NAMERECV\r\n".encode("latin-1"))
-                        filename = os.path.basename(filename.decode())
+                        output_filename = "{}.{}".format(os.path.basename(filename.decode()), chunk)
                     else:
                         raise RuntimeError("Message not consistent")
                 else:
                     dt = datetime.datetime.now().strftime("%d%m%Y-%H%M%S")
-                    filename = "xraw.{}.dat".format(dt)
+                    output_filename = "xraw.{}.dat".format(dt)
 
                 def _getc(size, timeout=ser_port.timeout):
                     #logging.debug("READ SIZE: {}".format(size))
@@ -162,8 +171,23 @@ class DataReceiver(object):
                 # TODO: Solve this timeliness to start
                 time.sleep(2)
                 xfer = xmodem.XMODEM(_getc, _putc)
-                with open(os.path.join(self._dir, filename), "wb") as fh:
+                with open(os.path.join(self._dir, output_filename), "wb") as fh:
                     xfer.recv(fh, retry=100)
+
+                if self._preamble and filename and chunk == total_chunks:
+                    cb = 0
+
+                    with open(os.path.join(self._dir, filename), "wb") as ofh:
+                        for i in range(1, total_chunks+1):
+                            with open(os.path.join(self._dir,
+                                                   "{}.{}".format(os.path.basename(filename.decode()), chunk)),
+                                      "rb") as rfh:
+                                ofh.write(rfh.read(1))
+                                cb += 1
+                                if cb == filelength:
+                                    logging.info("Merged to reported size of {} bytes in {}".format(filelength, filename))
+                                    break
+                        logging.info("Done")
             else:
                 logging.warning("Invalid message received, looping for another listen")
         finally:
