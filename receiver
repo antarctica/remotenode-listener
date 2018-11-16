@@ -119,16 +119,24 @@ class DataReceiver(object):
                     while not data:
                         data = ser_port.read_until(terminator=su.to_bytes([0x1b]))
 
-                    logging.debug("File message: {}".format(data))
+                    logging.debug("File message {} bytes : {}".format(len(data), data))
 
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
+                        logging.debug("{}: {}".format(struct.calcsize("BB"), length))
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
+
+                        logging.debug("{}: {}".format(struct.calcsize("BB{}s".format(length)), filename))
                         (filelength) = struct.unpack_from("<i", data, struct.calcsize("BB{}s".format(length)))[0]
+
+                        logging.debug("{}: {}".format(struct.calcsize("BB{}si".format(length)), filelength))
                         (chunk) = struct.unpack_from("<i", data, struct.calcsize("BB{}si".format(length)))[0]
+
+                        logging.debug("{}: {}".format(struct.calcsize("BB{}sii".format(length)), chunk))
                         (total_chunks) = struct.unpack_from("<i", data, struct.calcsize("BB{}sii".format(length)))[0]
                         # TODO: pyremotenode needs to mimic the int32 signed CRC as I don't think I can force
                         # the VM2 to send an unsigned int
+                        logging.debug("{}: {}".format(struct.calcsize("BB{}siii".format(length)), total_chunks))
                         (crc32, tail) = struct.unpack_from("<iB", data,
                                                            struct.calcsize("BB{}siii".format(length)))
                     except struct.error:
