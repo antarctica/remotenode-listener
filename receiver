@@ -95,13 +95,16 @@ class DataReceiver(object):
                 ser_port.flushInput()
 
                 data = None
-                while not data:
-                    data = ser_port.read_until(terminator=su.LF)
+                filename_command = ""
 
-                logging.debug("Data received: {}".format(data))
+                while not filename_command.endswith("FILENAME"):
+                    data = ser_port.read(size=1)
 
-                filename_command = data.decode("latin-1").strip()
-                logging.debug("Comparing {} and {}".format(data.decode("ascii").strip(), "FILENAME"))
+                    logging.debug("Data received: {}".format(data))
+                    if data.decode("latin-1") == "@":
+                        ser_port.write("A")
+                    filename_command += data.decode("latin-1")
+                    filename_command = filename_command.strip()
 
                 # There is often a stray \x00 byte at the start, which I'm happy to fuck off...
                 if filename_command.endswith("FILENAME"):
@@ -116,6 +119,8 @@ class DataReceiver(object):
                     logging.info("Waiting for filename information...")
 
                     data = None
+                    # TODO: We need to timeout and retry here, it's possible for vmremotenodes to send multiple FILENAME
+                    # messages that we should be able to handle
                     while not data:
                         data = ser_port.read_until(terminator=su.to_bytes([0x1b]))
 
@@ -160,12 +165,8 @@ class DataReceiver(object):
                     output_filename = "xraw.{}.dat".format(dt)
 
                 def _getc(size, timeout=ser_port.timeout):
-                    #logging.debug("READ SIZE: {}".format(size))
-
                     ser_port.timeout = timeout
                     read = ser_port.read(size=size) or None
-
-                    #logging.debug("READ DATA: {}".format(read))
                     return read
 
                 def _putc(data, timeout=ser_port.write_timeout):
@@ -173,7 +174,6 @@ class DataReceiver(object):
                     #ser_port.write_timeout = timeout
                     size = ser_port.write(data=data)
                     ser_port.flush()
-                    #logging.debug("WRITE SIZE: {}".format(size))
                     return size
 
                 # TODO: Solve this timeliness to start
@@ -185,7 +185,7 @@ class DataReceiver(object):
                 if self._preamble and filename and chunk == total_chunks:
                     cb = 0
 
-                    with open(os.path.join(self._dir, filename), "wb") as ofh:
+                    with open(os.path.join(self._dir, filename.decode()), "wb") as ofh:
                         for i in range(1, total_chunks+1):
                             with open(os.path.join(self._dir,
                                                    "{}.{}".format(os.path.basename(filename.decode()), chunk)),
