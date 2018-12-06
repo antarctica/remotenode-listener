@@ -102,7 +102,7 @@ class DataReceiver(object):
 
                     logging.debug("Data received: {}".format(data))
                     if data.decode("latin-1") == "@":
-                        ser_port.write("A")
+                        ser_port.write("A".encode("latin-1"))
                     filename_command += data.decode("latin-1")
                     filename_command = filename_command.strip()
 
