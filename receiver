@@ -109,8 +109,8 @@ class DataReceiver(object):
                 # There is often a stray \x00 byte at the start, which I'm happy to fuck off...
                 if filename_command.endswith("FILENAME"):
                     logging.debug("Sending FILENAME response...")
-                    # TODO: \r\n (gahhh) due to inconsistent line terminators, sort it out
-                    ser_port.write("GOFORIT\r\n".encode("latin-1"))
+                    ser_port.flushInput()
+                    ser_port.write("GOFORIT".encode("latin-1"))
                 else:
                     logging.debug("No valid message received, start again...")
                     continue
