@@ -107,28 +107,29 @@ class DataReceiver(object):
                     filename_command = filename_command.strip()
 
                 # There is often a stray \x00 byte at the start, which I'm happy to fuck off...
-                if filename_command.endswith("FILENAME"):
-                    logging.debug("Sending FILENAME response...")
-                    ser_port.flushInput()
-                    ser_port.write("GOFORIT".encode("latin-1"))
-                else:
-                    logging.debug("No valid message received, start again...")
-                    continue
+                logging.debug("Sending FILENAME response...")
+                ser_port.flushInput()
+                ser_port.flushOutput()
+                ser_port.write("GOFORIT".encode("latin-1"))
 
                 if self._preamble:
                     logging.info("Waiting for filename information...")
 
                     data = None
-                    # TODO: We need to timeout and retry here, it's possible for vmremotenodes to send multiple FILENAME
-                    # messages that we should be able to handle
-                    while not data:
-                        data = ser_port.read_until(terminator=su.to_bytes([0x1b]))
+                    while not data or (len(data) and data[0] != 0x1a):
+                        logging.warning("Redundant character received: {}".format(hex(ord(data[0]))))
+                        data = ser_port.read(size=1)
+                    data += ser_port.read(size=1)
 
                     logging.debug("File message {} bytes : {}".format(len(data), data))
 
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
                         logging.debug("{}: {}".format(struct.calcsize("BB"), length))
+                        data += ser_port.read(size=(length + 13))
+                        if data[-1] != 0x1b:
+                            logging.warning("Possibly malformed header message")
+                            
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
 
                         logging.debug("{}: {}".format(struct.calcsize("BB{}s".format(length)), filename))
