@@ -117,7 +117,8 @@ class DataReceiver(object):
 
                     data = None
                     while not data or (len(data) and data[0] != 0x1a):
-                        logging.warning("Redundant character received: {}".format(hex(ord(data[0]))))
+                        if data:
+                            logging.warning("Redundant character received: {}".format(hex(ord(data[0]))))
                         data = ser_port.read(size=1)
                     data += ser_port.read(size=1)
 
