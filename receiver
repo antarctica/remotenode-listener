@@ -122,14 +122,12 @@ class DataReceiver(object):
                         data = ser_port.read(size=1)
                     data += ser_port.read(size=1)
 
-                    logging.debug("File message {} bytes : {}".format(len(data), data))
-
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
                         logging.debug("{}: {}".format(struct.calcsize("BB"), length))
-                        data += ser_port.read(size=(length + 13))
+                        data += ser_port.read(size=(length + 17))
                         if data[-1] != 0x1b:
-                            logging.warning("Possibly malformed header message")
+                            logging.warning("Possibly malformed header message: {}")
                             
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
 
