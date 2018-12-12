@@ -86,7 +86,8 @@ class DataReceiver(object):
                                    bytesize=serial.EIGHTBITS,
                                    parity=serial.PARITY_NONE,
                                    stopbits=serial.STOPBITS_ONE,
-#                                   timeout=10,
+                                   # TODO: Set in line with configuration of clients
+                                   timeout=120,
 #                                   write_timeout=10,
                                    rtscts=True,
                                    dsrdtr=True
@@ -101,11 +102,12 @@ class DataReceiver(object):
                 while not filename_command.endswith("FILENAME"):
                     data = ser_port.read(size=1)
 
-                    #logging.debug("Data received: {}".format(data))
-                    if data.decode("latin-1") == "@":
-                        ser_port.write("A".encode("latin-1"))
-                    filename_command += data.decode("latin-1")
-                    filename_command = filename_command.strip()
+                    if data:
+                        #logging.debug("Data received: {}".format(data))
+                        if data.decode("latin-1") == "@":
+                            ser_port.write("A".encode("latin-1"))
+                        filename_command += data.decode("latin-1")
+                        filename_command = filename_command.strip()
 
                 logging.debug("Sending FILENAME response...")
                 ser_port.flushInput()
@@ -203,7 +205,7 @@ class DataReceiver(object):
                                 else:
                                     read_length = chunk_length
 
-                                logging.debug("Writing {} bytes to {}".format(os.path.join(self._dir, filename.decode())))
+                                logging.debug("Writing {} bytes to {}".format(read_length, os.path.join(self._dir, filename.decode())))
                                 ofh.write(rfh.read(read_length))
                 logging.info("Done")
             else:
