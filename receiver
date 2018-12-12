@@ -131,19 +131,19 @@ class DataReceiver(object):
                             
                         (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
 
-                        logging.debug("{}: {}".format(struct.calcsize("BB{}s".format(length)), filename))
-                        (file_length) = struct.unpack_from("<i", data, struct.calcsize("BB{}s".format(length)))[0]
+                        logging.debug("{}: {}".format(struct.calcsize("=BB{}s".format(length)), filename))
+                        (file_length) = struct.unpack_from("<i", data, struct.calcsize("=BB{}s".format(length)))[0]
 
-                        logging.debug("{}: {}".format(struct.calcsize("BB{}si".format(length)), file_length))
-                        (chunk) = struct.unpack_from("<i", data, struct.calcsize("BB{}si".format(length)))[0]
+                        logging.debug("{}: {}".format(struct.calcsize("=BB{}si".format(length)), file_length))
+                        (chunk) = struct.unpack_from("<i", data, struct.calcsize("=BB{}si".format(length)))[0]
 
-                        logging.debug("{}: {}".format(struct.calcsize("BB{}sii".format(length)), chunk))
-                        (total_chunks) = struct.unpack_from("<i", data, struct.calcsize("BB{}sii".format(length)))[0]
+                        logging.debug("{}: {}".format(struct.calcsize("=BB{}sii".format(length)), chunk))
+                        (total_chunks) = struct.unpack_from("<i", data, struct.calcsize("=BB{}sii".format(length)))[0]
                         # TODO: pyremotenode needs to mimic the int32 signed CRC as I don't think I can force
                         # the VM2 to send an unsigned int
-                        logging.debug("{}: {}".format(struct.calcsize("BB{}siii".format(length)), total_chunks))
+                        logging.debug("{}: {}".format(struct.calcsize("=BB{}siii".format(length)), total_chunks))
                         (crc32, tail) = struct.unpack_from("<iB", data,
-                                                           struct.calcsize("BB{}siii".format(length)))
+                                                           struct.calcsize("=BB{}siii".format(length)))
                     except struct.error:
                         raise
 
