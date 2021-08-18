@@ -11,6 +11,7 @@ import serial.serialutil as su
 import struct
 import subprocess as sp
 import time
+import timeit
 import xmodem
 
 from threading import Thread
@@ -46,11 +47,13 @@ class DebugSerial(serial.Serial):
 
 
 class DataReceiver(object):
-    def __init__(self, port, location, output_dir, debug=False, preamble=True):
+    def __init__(self, port, location, output_dir,
+                 debug=False, preamble=True, preamble_timeout=120):
         self._debug = debug
         self._dir = output_dir
         self._port = port
         self._preamble = preamble
+        self._preamble_timeout = preamble_timeout
         self._ttyloc = location
 
         if not os.path.exists(self._dir):
@@ -120,9 +123,18 @@ class DataReceiver(object):
                     data = None
                     while not data or (len(data) and data[0] != 0x1a):
                         if data:
-                            logging.warning("Redundant character received: {}".format(hex(ord(data[0]))))
+                            logging.warning("Redundant character received: {}".
+                                            format(hex(ord(data[0]))))
                         data = ser_port.read(size=1)
-                    data += ser_port.read(size=1)
+
+                    st = time.time()
+
+                    while data[-1] != 0x1b:
+                        data += ser_port.read(size=1)
+                        if time.time() - st > float(self._preamble_timeout):
+                            raise RuntimeError("Preamble timeout has exceeded "
+                                               "{} seconds".format(
+                                                self._preamble_timeout))
 
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
