@@ -256,6 +256,7 @@ class DataReceiverConfigurationError(Exception):
 class DataReceiverRuntimeError(Exception):
     pass
 
+
 if __name__ == '__main__':
     a = argparse.ArgumentParser()
     a.add_argument("-d", "--debug", help="Write a transaction log", action="store_true", default=False)

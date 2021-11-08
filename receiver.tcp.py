@@ -1,26 +1,14 @@
 import argparse
 import binascii
-import datetime
 import logging
 import os
-import pprint
-import re
-import serial
-import serial.threaded
 import socket
 import struct
-import sys
-import time
 import xmodem
 
-from subprocess import Popen, PIPE
 from threading import Thread
 
 from pyremotenode.utils import setup_logging
-
-log = setup_logging(__name__, filelog=False)
-logging.getLogger().setLevel(logging.DEBUG)
-logging.info("PyRMDataReceiver")
 
 
 # Based on https://github.com/pyserial/pyserial/blob/master/examples/tcp_serial_redirect.py
@@ -143,7 +131,12 @@ class DataReceiverConfigurationError(Exception):
 class DataReceiverRuntimeError(Exception):
     pass
 
+
 if __name__ == '__main__':
+    log = setup_logging(__name__)
+    logging.basicConfig(level=logging.DEBUG)
+    logging.info("PyRMDataReceiver")
+
     a = argparse.ArgumentParser()
     a.add_argument("port", help="TCP port to listen on", type=int)
     a.add_argument("directory", help="Output directory")
