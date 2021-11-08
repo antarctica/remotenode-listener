@@ -62,7 +62,8 @@ class DataReceiver(object):
                         logging.debug("Data received: {}".format(
                             data.decode("ascii")))
 
-                        if data.decode().strip() == "@":
+                        if not lead_in and not preamble \
+                                and data.decode().strip() == "@":
                             client_socket.send("A".encode("ascii"))
                             data = bytearray()
                             continue
@@ -83,19 +84,22 @@ class DataReceiver(object):
                             logging.info("Waiting for filename information...")
                             logging.debug("File message: {}".format(data))
 
-                            (lead, length) = struct.unpack_from("BB", data)
-                            (filename, file_length) = struct.unpack_from(
-                                "{}si".format(length),
-                                data,
-                                struct.calcsize("BB"))[0]
-                            (chunk, total_chunks) = struct.unpack_from(
-                                "ii".format(length),
-                                data,
-                                struct.calcsize("BB{}si".format(length)))[0]
-                            (crc32, tail) = struct.\
-                                unpack_from("iB", data,
-                                            struct.calcsize("BB{}siii".
-                                                            format(length)))
+                            try:
+                                (lead, length) = struct.unpack_from("BB", data)
+                                (filename, file_length) = struct.unpack_from(
+                                    "{}si".format(length),
+                                    data,
+                                    struct.calcsize("BB"))[0]
+                                (chunk, total_chunks) = struct.unpack_from(
+                                    "ii".format(length),
+                                    data,
+                                    struct.calcsize("BB{}si".format(length)))[0]
+                                (crc32, tail) = struct.\
+                                    unpack_from("iB", data,
+                                                struct.calcsize("BB{}siii".
+                                                                format(length)))
+                            except struct.error:
+                                continue
 
                             logging.info("Received filename infromation, "
                                          "checking...")
@@ -134,9 +138,6 @@ class DataReceiver(object):
 
                         lead_in = False
                         preamble = False
-
-                except struct.error:
-                    logging.exception("Struct error")
                 finally:
                     logging.info('Disconnected')
                     client_socket.close()
