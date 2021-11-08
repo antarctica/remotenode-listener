@@ -62,6 +62,11 @@ class DataReceiver(object):
                         logging.debug("Data received: {}".format(
                             data.decode("ascii")))
 
+                        if data.decode().strip() == "@":
+                            client_socket.send("@".encode("ascii"))
+                            data = bytearray()
+                            continue
+
                         if not lead_in:
                             if data.decode().strip() == "FILENAME":
                                 logging.debug("Sending FILENAME response...")
