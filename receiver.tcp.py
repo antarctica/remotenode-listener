@@ -48,69 +48,79 @@ class DataReceiver(object):
 
                 client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
+                data = bytearray()
+
+                lead_in = False
+                preamble = False
+
                 try:
                     while True:
-                        try:
-                            data = client_socket.recv(4096)
-                            if not data:
-                                break
+                        data += client_socket.recv(4096)
+                        if not data:
+                            break
 
-                            logging.debug("Data received: {}".format(data.decode("ascii")))
+                        logging.debug("Data received: {}".format(
+                            data.decode("ascii")))
 
+                        if not lead_in:
                             if data.decode().strip() == "FILENAME":
                                 logging.debug("Sending FILENAME response...")
-                                client_socket.send("GOFORIT\r\n".encode("ascii"))
+                                client_socket.send("GOFORIT\r\n".
+                                                   encode("ascii"))
+                                data = bytearray()
                             else:
-                                logging.debug("No valid message received, start again...")
+                                logging.debug("No valid message received, "
+                                              "start again...")
                                 continue
 
+                        if not preamble:
                             logging.info("Waiting for filename information...")
-
-                            data = client_socket.recv(4096)
-                            if not data:
-                                break
-                            else:
-                                logging.debug("File message: {}".format(data))
+                            logging.debug("File message: {}".format(data))
 
                             try:
                                 (lead, length) = struct.unpack_from("BB", data)
-                                (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
-                                (crc32, tail) = struct.unpack_from("qB", data,
-                                                                   struct.calcsize("BB{}s".format(length)))
+                                (filename, file_length) = struct.unpack_from(
+                                    "{}s<i".format(length),
+                                    data,
+                                    struct.calcsize("BB"))[0]
+                                (crc32, tail) = struct.\
+                                    unpack_from("<iB", data,
+                                                struct.calcsize("BB{}s<i".
+                                                                format(length)))
                             except struct.error:
                                 raise
 
-                            logging.info("Received filename infromation, checking...")
+                            logging.info("Received filename infromation, "
+                                         "checking...")
                             logging.debug("Filename length: {}".format(length))
+                            logging.debug("File length: {}".format(file_length))
                             logging.debug("Filename: {}".format(filename))
                             logging.debug("Filename CRC: {}".format(crc32))
 
-                            if lead == 0x1a and tail == 0x1b \
-                               and binascii.crc32(filename) & 0xffffffff == crc32:
-                                client_socket.send("NAMERECV\r\n".encode("ascii"))
+                        if lead == 0x1a and tail == 0x1b \
+                           and binascii.crc32(filename) & 0xffffffff == crc32:
+                            client_socket.send("NAMERECV\r\n".encode("ascii"))
 
-                                with open("dataout.bin", "wb") as dataout:
-                                    def _getc(size, timeout=1):
-                                        read = ""
-                                        while read == "":
-                                            read = client_socket.recv(size)
-                                        dataout.write(read)
-                                        return read
+                            with open("dataout.bin", "wb") as dataout:
+                                def _getc(size, timeout=1):
+                                    read = ""
+                                    while read == "":
+                                        read = client_socket.recv(size)
+                                    dataout.write(read)
+                                    return read
 
-                                    def _putc(msg, timeout=1):
-                                        logging.debug("WRITE DATA: {}".format(msg))
-                                        size = client_socket.sendall(msg) or None
-                                        #logging.debug("WRITE SIZE: {}".format(size))
-                                        return size
+                                def _putc(msg, timeout=1):
+                                    logging.debug("WRITE DATA: {}".format(msg))
+                                    size = client_socket.sendall(msg) or None
+                                    #logging.debug("WRITE SIZE: {}".format(size))
+                                    return size
 
-                                    xfer = xmodem.XMODEM(_getc, _putc)
-                                    with open(filename, "wb") as fh:
-                                        xfer.recv(fh)
-                            else:
-                                logging.warning("Invalid message received")
-                                break
-                        finally:
-                            pass
+                                xfer = xmodem.XMODEM(_getc, _putc)
+                                with open(filename, "wb") as fh:
+                                    xfer.recv(fh)
+                        else:
+                            logging.warning("Invalid message received")
+                            break
                 finally:
                     logging.info('Disconnected')
                     client_socket.close()
