@@ -63,7 +63,7 @@ class DataReceiver(object):
                             data.decode("ascii")))
 
                         if data.decode().strip() == "@":
-                            client_socket.send("@".encode("ascii"))
+                            client_socket.send("A".encode("ascii"))
                             data = bytearray()
                             continue
 
