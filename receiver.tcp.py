@@ -8,8 +8,6 @@ import xmodem
 
 from threading import Thread
 
-from pyremotenode.utils import setup_logging
-
 
 # Based on https://github.com/pyserial/pyserial/blob/master/examples/tcp_serial_redirect.py
 class DataReceiver(object):
@@ -133,7 +131,6 @@ class DataReceiverRuntimeError(Exception):
 
 
 if __name__ == '__main__':
-    log = setup_logging(__name__)
     logging.basicConfig(level=logging.DEBUG)
     logging.info("PyRMDataReceiver")
 
