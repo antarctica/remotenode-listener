@@ -68,27 +68,29 @@ class DataReceiver(object):
                                 client_socket.send("GOFORIT\r\n".
                                                    encode("ascii"))
                                 data = bytearray()
+                                lead_in = True
                             else:
                                 logging.debug("No valid message received, "
                                               "start again...")
-                                continue
+                            continue
 
                         if not preamble:
                             logging.info("Waiting for filename information...")
                             logging.debug("File message: {}".format(data))
 
-                            try:
-                                (lead, length) = struct.unpack_from("BB", data)
-                                (filename, file_length) = struct.unpack_from(
-                                    "{}s<i".format(length),
-                                    data,
-                                    struct.calcsize("BB"))[0]
-                                (crc32, tail) = struct.\
-                                    unpack_from("<iB", data,
-                                                struct.calcsize("BB{}s<i".
-                                                                format(length)))
-                            except struct.error:
-                                raise
+                            (lead, length) = struct.unpack_from("BB", data)
+                            (filename, file_length) = struct.unpack_from(
+                                "{}si".format(length),
+                                data,
+                                struct.calcsize("BB"))[0]
+                            (chunk, total_chunks) = struct.unpack_from(
+                                "ii".format(length),
+                                data,
+                                struct.calcsize("BB{}si".format(length)))[0]
+                            (crc32, tail) = struct.\
+                                unpack_from("iB", data,
+                                            struct.calcsize("BB{}siii".
+                                                            format(length)))
 
                             logging.info("Received filename infromation, "
                                          "checking...")
@@ -97,30 +99,39 @@ class DataReceiver(object):
                             logging.debug("Filename: {}".format(filename))
                             logging.debug("Filename CRC: {}".format(crc32))
 
-                        if lead == 0x1a and tail == 0x1b \
-                           and binascii.crc32(filename) & 0xffffffff == crc32:
-                            client_socket.send("NAMERECV\r\n".encode("ascii"))
+                            if lead == 0x1a and tail == 0x1b \
+                               and binascii.crc32(filename) & 0xffffffff == crc32:
+                                client_socket.send("NAMERECV\r\n".encode("ascii"))
 
-                            with open("dataout.bin", "wb") as dataout:
-                                def _getc(size, timeout=1):
-                                    read = ""
-                                    while read == "":
-                                        read = client_socket.recv(size)
-                                    dataout.write(read)
-                                    return read
+                                with open("dataout.bin", "wb") as dataout:
+                                    def _getc(size, timeout=1):
+                                        read = ""
+                                        while read == "":
+                                            read = client_socket.recv(size)
+                                        dataout.write(read)
+                                        return read
 
-                                def _putc(msg, timeout=1):
-                                    logging.debug("WRITE DATA: {}".format(msg))
-                                    size = client_socket.sendall(msg) or None
-                                    #logging.debug("WRITE SIZE: {}".format(size))
-                                    return size
+                                    def _putc(msg, timeout=1):
+                                        logging.debug("WRITE DATA: {}".format(msg))
+                                        size = client_socket.sendall(msg) or None
+                                        #logging.debug("WRITE SIZE: {}".format(size))
+                                        return size
 
-                                xfer = xmodem.XMODEM(_getc, _putc)
-                                with open(filename, "wb") as fh:
-                                    xfer.recv(fh)
-                        else:
-                            logging.warning("Invalid message received")
-                            break
+                                    xfer = xmodem.XMODEM(_getc, _putc)
+                                    with open(filename, "wb") as fh:
+                                        xfer.recv(fh)
+                            else:
+                                logging.warning("Invalid message received")
+                                break
+
+                        logging.info("Resetting flags and data buffer")
+                        data = bytearray()
+
+                        lead_in = False
+                        preamble = False
+
+                except struct.error:
+                    logging.exception("Struct error")
                 finally:
                     logging.info('Disconnected')
                     client_socket.close()
