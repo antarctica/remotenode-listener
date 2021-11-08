@@ -105,7 +105,7 @@ class DataReceiver(object):
                             logging.debug("Filename CRC: {}".format(crc32))
 
                             if lead == 0x1a and tail == 0x1b \
-                               and binascii.crc32(filename) & 0xffffffff == crc32:
+                               and binascii.crc32(filename) & 0xffff == crc32:
                                 client_socket.send("NAMERECV\r\n".encode("ascii"))
 
                                 with open("dataout.bin", "wb") as dataout:
