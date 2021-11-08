@@ -59,8 +59,8 @@ class DataReceiver(object):
                         if not data:
                             break
 
-                        logging.debug("Data received: {}".format(
-                            data.decode("ascii")))
+                        logging.debug("Data received: {} bytes".format(
+                            len(data)))
 
                         if not lead_in and not preamble \
                                 and data.decode().strip() == "@":
