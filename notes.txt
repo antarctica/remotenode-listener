@@ -1,0 +1,34 @@
+Serial port -> TCP connection
+# Set up receiver first
+
+python receiver.tcp.py 33003 ./out
+socat pty,link=ttyDUFF,rawer tcp-connect:localhost:33003,fork,reuseaddr
+socat -v pty,link=ttyDUFF,rawer tcp-connect:localhost:33003,fork,nodelay,reuseaddr
+
+python sender.tcp.py $HOME/scratch/csw15.txt
+
+
+
+
+=====
+
+python receiver.tcp.py 8888 ./out/
+socat pty,link=ttyDUFF,rawer tcp-connect:localhost:8888
+python sender.modem.py -m ~/scratch/csw15.txt
+
+
+
+
+
+3 * 16 bit / sec + header
+
+
+
+
+
+
+
+
+
+
+

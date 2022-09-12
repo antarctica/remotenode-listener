@@ -1,4 +1,7 @@
 .idea/
-output/
+*.bin
+/out/
+/output/
 debug.*
-scratch/
+/scratch/
+tty*

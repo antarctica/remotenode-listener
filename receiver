@@ -10,6 +10,7 @@ import serial.threaded
 import serial.serialutil as su
 import struct
 import subprocess as sp
+import sys
 import time
 import timeit
 import xmodem
@@ -20,6 +21,10 @@ logging.basicConfig(
     level=logging.DEBUG,
 )
 
+FILENAME = 0x1c
+GOFORIT = 0x1d
+STARTXFER = 0x1e
+NAMERECV = 0x1f
 
 class SocatException(Exception):
     pass
@@ -85,37 +90,30 @@ class DataReceiver(object):
                     if self._debug:
                         cls = DebugSerial
                     ser_port = cls(self._ttyloc,
-                                   baudrate=19200,
+                                   baudrate=9600,
                                    bytesize=serial.EIGHTBITS,
                                    parity=serial.PARITY_NONE,
                                    stopbits=serial.STOPBITS_ONE,
                                    # TODO: Set in line with configuration of clients
                                    timeout=120,
-#                                   write_timeout=10,
+                                   #write_timeout=10,
                                    rtscts=True,
-                                   dsrdtr=True
-                                   )
+                                   dsrdtr=True)
                 logging.info('Connected to fake serial {}'.format(self._ttyloc))
                 ser_port.flushInput()
 
-                # TODO: If we get a repeated FILENAME request this needs handling in place of the metadata message
-                data = None
-                filename_command = ""
+                filename_command = bytearray()
 
-                while not filename_command.endswith("FILENAME"):
+                while not filename_command[-1] == FILENAME:
                     data = ser_port.read(size=1)
 
                     if data:
-                        #logging.debug("Data received: {}".format(data))
-                        if data.decode("latin-1") == "@":
-                            ser_port.write("A".encode("latin-1"))
-                        filename_command += data.decode("latin-1")
-                        filename_command = filename_command.strip()
+                        if data == "@".encode():
+                            ser_port.write("A".encode())
+                        filename_command += data
 
                 logging.debug("Sending FILENAME response...")
-                ser_port.flushInput()
-                ser_port.flushOutput()
-                ser_port.write("GOFORIT".encode("latin-1"))
+                ser_port.write(GOFORIT.to_bytes(1, sys.byteorder))
 
                 if self._preamble:
                     logging.info("Waiting for filename information...")
@@ -138,50 +136,40 @@ class DataReceiver(object):
 
                     try:
                         (lead, length) = struct.unpack_from("BB", data)
-                        logging.debug("{}: {}".format(struct.calcsize("BB"), length))
 
-                        # FIXME 2021: why read more, we already have everything?
-                        # data += ser_port.read(size=(length + 17))
-                        # if data[-1] != 0x1b:
-                        #    logging.warning("Possibly malformed header
-                        #    message: {}")
-                            
-                        (filename) = struct.unpack_from("{}s".format(length), data, struct.calcsize("BB"))[0]
+                        req_length = \
+                            struct.calcsize("=BB{}sqqqiB".format(
+                                length))
 
-                        logging.debug("{}: {}".format(struct.calcsize("=BB{}s".format(length)), filename))
-                        (file_length) = struct.unpack_from("<i", data, struct.calcsize("=BB{}s".format(length)))[0]
+                        if len(data) != req_length:
+                            logging.warning("{} is not equal to "
+                                            "expected {} "
+                                            "bytes".format(len(data),
+                                                           req_length))
+                            # TODO: limit retries?
+                            continue
 
-                        logging.debug("{}: {}".format(struct.calcsize("=BB{}si".format(length)), file_length))
-                        (chunk) = struct.unpack_from("<i", data, struct.calcsize("=BB{}si".format(length)))[0]
-
-                        logging.debug("{}: {}".format(struct.calcsize("=BB{}sii".format(length)), chunk))
-                        (total_chunks) = struct.unpack_from("<i", data, struct.calcsize("=BB{}sii".format(length)))[0]
-
-                        # TODO: pyremotenode needs to mimic the int32 signed CRC as I don't think I can force
-                        # the VM2 to send an unsigned int
-
-                        logging.debug("{}: {}".format(struct.calcsize("=BB{}siii".format(length)), total_chunks))
-                        (crc32, tail) = struct.unpack_from("<iB", data,
-                                                           struct.calcsize("=BB{}siii".format(length)))
+                        (filename, file_length) = struct.unpack_from(
+                            "{}sq".format(length),
+                            data,
+                            struct.calcsize("=BB"))
+                        (chunk, total_chunks) = struct.unpack_from(
+                            "qq".format(length),
+                            data,
+                            struct.calcsize("=BB{}sq".format(length)))
+                        (crc32, tail) = struct.\
+                            unpack_from("iB", data,
+                                        struct.calcsize("=BB{}sqqq".
+                                                        format(length)))
                     except struct.error:
-                        raise
+                        continue
 
-                    logging.info("Received filename information, checking...")
-                    logging.debug("Filename: {}".format(filename))
+                    logging.info("Received filename infromation, "
+                                 "checking...")
                     logging.debug("Filename length: {}".format(length))
-                    logging.debug("Filename chunk: {} of {}".format(chunk, total_chunks))
-                    logging.debug("File length: {} bytes".format(file_length))
+                    logging.debug("File length: {}".format(file_length))
+                    logging.debug("Filename: {}".format(filename))
                     logging.debug("Filename CRC: {}".format(crc32))
-
-                    if lead == 0x1a \
-                        and ctypes.c_int(binascii.crc32(filename) & 0xffffffff).value == crc32:
-                        ser_port.write("NAMERECV\r\n".encode("latin-1"))
-                        output_filename = "{}.{}".format(os.path.basename(filename.decode()), chunk)
-                    else:
-                        raise RuntimeError("Message not consistent")
-                else:
-                    dt = datetime.datetime.now().strftime("%d%m%Y-%H%M%S")
-                    output_filename = "xraw.{}.dat".format(dt)
 
                 def _getc(size, timeout=ser_port.timeout):
                     ser_port.timeout = timeout
@@ -198,7 +186,7 @@ class DataReceiver(object):
                 # TODO: Solve this timeliness to start
                 time.sleep(2)
                 xfer = xmodem.XMODEM(_getc, _putc)
-                with open(os.path.join(self._dir, output_filename), "wb") as fh:
+                with open(os.path.join(self._dir, "{}.{}".format(os.path.basename(filename.decode()), chunk)), "wb") as fh:
                     xfer.recv(fh, retry=100)
 
                 if self._preamble and filename and chunk == total_chunks:

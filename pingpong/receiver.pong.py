@@ -4,16 +4,9 @@ import logging
 import os
 import socket
 import struct
-import sys
-import time as tm
 import xmodem
 
 from threading import Thread
-
-FILENAME = 0x1c
-GOFORIT = 0x1d
-STARTXFER = 0x1e
-NAMERECV = 0x1f
 
 
 # Based on https://github.com/pyserial/pyserial/
@@ -42,7 +35,6 @@ class DataReceiver(object):
                 logging.info('Waiting for connection on {}...'.format(self._port))
                 client_socket, addr = self._srv.accept()
                 logging.info('Connected by {}'.format(addr))
-
                 # More quickly detect bad clients who quit without closing the
                 # connection: After 1 second of idle, start sending TCP keep-alive
                 # packets every 1 second. If 3 consecutive keep-alive packets
@@ -52,57 +44,36 @@ class DataReceiver(object):
                     client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 1)
                     client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
                     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-                    client_socket.setsockopt(socket.IPPROTO_TCP,
-                                             socket.TCP_NODELAY, 1)
-
-                    client_socket.setsockopt(socket.SOL_SOCKET,
-                                             socket.SO_RCVTIMEO,
-                                             (1).to_bytes(8, sys.byteorder) +
-                                             (0).to_bytes(8, sys.byteorder))
-                    x = client_socket.getsockopt(socket.SOL_SOCKET,
-                                                 socket.SO_RCVTIMEO,
-                                                 16)
-                    logging.info("Timeout seconds: {}, usecs: {}".format(
-                        int.from_bytes(x[:8], sys.byteorder),
-                        int.from_bytes(x[8:], sys.byteorder)))
-
                 except AttributeError:
-                    pass
+                    pass  # XXX not available on windows
+
+                client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
                 data = bytearray()
+
                 lead_in = False
                 preamble = False
 
                 try:
                     while True:
-                        try:
-                            recv = client_socket.recv(4096)
-                        except socket.error as e:
-                            if e.errno == 11:
-                                continue
-                            else:
-                                raise
+                        data += client_socket.recv(1)
+                        if not data:
+                            break
 
-                        if not recv:
-                            continue
-                        else:
-                            data += recv
-
-                        logging.info("Buffer size received: {}".
-                                     format(len(data)))
+                        logging.debug("Data received: {} bytes".format(
+                            len(data)))
 
                         if not lead_in and not preamble \
-                                and data[-1] == int.from_bytes(b"@",
-                                                               sys.byteorder):
-                            logging.info("Got init byte, sending response")
-                            client_socket.send(b"A")
+                                and data.decode().strip() == "@":
+                            client_socket.send("A".encode("ascii"))
                             data = bytearray()
                             continue
 
                         if not lead_in:
-                            if data == FILENAME.to_bytes(1, sys.byteorder):
+                            if data.decode().strip() == "FILENAME":
                                 logging.debug("Sending FILENAME response...")
-                                client_socket.send(GOFORIT.to_bytes(1, sys.byteorder))
+                                client_socket.send("GOFORIT\r\n".
+                                                   encode("ascii"))
                                 data = bytearray()
                                 lead_in = True
                             else:
@@ -116,30 +87,17 @@ class DataReceiver(object):
 
                             try:
                                 (lead, length) = struct.unpack_from("BB", data)
-
-                                req_length = \
-                                    struct.calcsize("=BB{}sqqqiB".format(
-                                        length))
-
-                                if len(data) != req_length:
-                                    logging.warning("{} is not equal to "
-                                                    "expected {} "
-                                                    "bytes".format(len(data),
-                                                                   req_length))
-                                    # TODO: limit retries?
-                                    continue
-
                                 (filename, file_length) = struct.unpack_from(
-                                    "{}sq".format(length),
+                                    "{}si".format(length),
                                     data,
-                                    struct.calcsize("=BB"))
+                                    struct.calcsize("BB"))
                                 (chunk, total_chunks) = struct.unpack_from(
-                                    "qq".format(length),
+                                    "ii".format(length),
                                     data,
-                                    struct.calcsize("=BB{}sq".format(length)))
+                                    struct.calcsize("BB{}si".format(length)))
                                 (crc32, tail) = struct.\
                                     unpack_from("iB", data,
-                                                struct.calcsize("=BB{}sqqq".
+                                                struct.calcsize("BB{}siii".
                                                                 format(length)))
                             except struct.error:
                                 continue
@@ -153,59 +111,21 @@ class DataReceiver(object):
 
                             if lead == 0x1a and tail == 0x1b \
                                and binascii.crc32(filename) & 0xffff == crc32:
-                                client_socket.send(NAMERECV.to_bytes(1, sys.byteorder))
+                                client_socket.send("NAMERECV\r\n".encode("ascii"))
 
                                 with open("dataout.bin", "wb") as dataout:
                                     def _getc(size, timeout=1):
-                                        try:
+                                        read = ""
+                                        while read == "":
                                             read = client_socket.recv(size)
-                                            dataout.write(read)
-                                        except socket.error as e:
-                                            if e.errno == 11:
-                                                read = None
-
-                                        logging.debug("READ {} DATA: {}".format(
-                                            size,
-                                            str(int.from_bytes(read,
-                                                               sys.byteorder))
-                                            if read else "none"))
-                                        return read or None
+                                        dataout.write(read)
+                                        return read
 
                                     def _putc(msg, timeout=1):
                                         logging.debug("WRITE DATA: {}".format(msg))
-                                        size = client_socket.send(msg)
+                                        size = client_socket.sendall(msg) or None
+                                        #logging.debug("WRITE SIZE: {}".format(size))
                                         return size
-
-                                    data = bytearray()
-
-                                    while not len(data) or \
-                                            data[-1] != STARTXFER:
-                                        try:
-                                            data += client_socket.recv(4096)
-                                        except socket.error as e:
-                                            if e.errno != 11:
-                                                raise
-
-                                    logging.warning("TEMP sleep for 5, "
-                                                    "sender should not start")
-                                    tm.sleep(5)
-
-                                    client_socket.setsockopt(socket.SOL_SOCKET,
-                                                             socket.SO_RCVTIMEO,
-                                                             (10).to_bytes(8,
-                                                                          sys.byteorder) +
-                                                             (0).to_bytes(8,
-                                                                          sys.byteorder))
-                                    x = client_socket.getsockopt(
-                                        socket.SOL_SOCKET,
-                                        socket.SO_RCVTIMEO,
-                                        16)
-                                    logging.info(
-                                        "Timeout seconds: {}, usecs: {}".format(
-                                            int.from_bytes(x[:8],
-                                                           sys.byteorder),
-                                            int.from_bytes(x[8:],
-                                                           sys.byteorder)))
 
                                     xfer = xmodem.XMODEM(_getc, _putc)
                                     with open(filename, "wb") as fh:
@@ -219,8 +139,6 @@ class DataReceiver(object):
 
                         lead_in = False
                         preamble = False
-
-
                 finally:
                     logging.info('Disconnected')
                     client_socket.close()
